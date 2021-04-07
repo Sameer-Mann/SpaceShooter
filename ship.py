@@ -1,4 +1,5 @@
 from laser import Laser
+from constants import WIDTH,HEIGHT
 class Ship:
     """A general class that contains helper functions.
     All ships player as well as enemies are derived from this"""
@@ -37,3 +38,13 @@ class Ship:
             laser = Laser(self.x, self.y, self.laser_img)
             self.lasers.append(laser)
             self.cool_down_counter = 1
+
+    def move_lasers(self, vel, obj):
+        self.cooldown()
+        for laser in self.lasers:
+            laser.move(vel)
+            if laser.off_screen():
+                self.lasers.remove(laser)
+            elif laser.collision(obj):
+                # obj.health -= 10
+                self.lasers.remove(laser)

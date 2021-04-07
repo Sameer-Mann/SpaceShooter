@@ -1,5 +1,6 @@
 import pygame
-WIDTH,HEIGHT = 800,800
+# WIDTH,HEIGHT = 800,800
+from constants import HEIGHT
 class Laser:
     def __init__(self,x,y,img):
         self.x,self.y,self.img = x,y,img
