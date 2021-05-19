@@ -261,9 +261,9 @@ def wait():
             if event.type == QUIT:
                 pygame.quit()
             if event.type == KEYDOWN and event.key == K_ESCAPE:
-                pygame.quit()
+                return 1
             if event.type == KEYDOWN and event.key == K_SPACE:
-                return
+                return 0
 
 def update_scores(player):
     scores = {}
@@ -345,7 +345,9 @@ def menu():
                     titleLabel = titleFont.render("Press Space To Restart/Escape To Quit...",1,(255,255,255))
                     WIN.blit(titleLabel,(WIDTH//2 - titleLabel.get_width()//2,HEIGHT//2))
                     update()
-                    wait()
+                    if wait()==1:
+                        run = False
+                        break
     display_scores()
     pygame.quit()
 if __name__ == '__main__':
