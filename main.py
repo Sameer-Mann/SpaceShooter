@@ -4,18 +4,44 @@ from random import randint
 from constants import WIN,SPACESHIP,BULLET,BACKGROUND,\
                       HEIGHT,WIDTH,ENEMY_SHIP,ENEMY_BULLET
 from pygame import K_LEFT,K_RIGHT,K_UP,K_DOWN,\
-                   K_a,K_w,K_d,K_s,K_SPACE,QUIT
+                   K_a,K_w,K_d,K_s,K_SPACE,QUIT,K_ESCAPE,KEYDOWN
 from pygame.display import update
 from pygame.font import SysFont
 from pygame.time import Clock
 from pygame.mask import from_surface
 from pygame.key import get_pressed
 from pygame.event import get
+from pickle import dumps,loads
 pygame.init()
 font.init()
 pygame.mixer.init()
 bulletSound = mixer.Sound("assets/laser.wav")
 explosion = pygame.mixer.Sound("assets/explosion.wav")
+validChars = "`1234567890-=qwertyuiop[]\\asdfghjkl;'zxcvbnm,./"
+shiftChars = '~!@#$%^&*()_+QWERTYUIOP{}|ASDFGHJKL:"ZXCVBNM<>?'
+shiftDown = False
+class TextBox(pygame.sprite.Sprite):
+  def __init__(self):
+    pygame.sprite.Sprite.__init__(self)
+    self.text = ""
+    self.font = pygame.font.Font(None, 50)
+    self.image = self.font.render("Enter your name", False, [0, 0, 0])
+    self.rect = self.image.get_rect()
+
+  def add_chr(self, char):
+    global shiftDown
+    if char in validChars and not shiftDown:
+        self.text += char
+    elif char in validChars and shiftDown:
+        self.text += shiftChars[validChars.index(char)]
+    self.update()
+
+  def update(self):
+    old_rect_pos = self.rect.center
+    self.image = self.font.render(self.text, False, [0, 0, 0])
+    self.rect = self.image.get_rect()
+    self.rect.center = old_rect_pos
+
 def collide(obj1, obj2) -> bool:
     offset_x = obj2.x - obj1.x
     offset_y = obj2.y - obj1.y
@@ -66,10 +92,11 @@ class Ship:
             self.cool_down_counter += 1
 
 class Player(Ship):
-    def __init__(self,x,y):
+    def __init__(self,x,y,username):
         super().__init__(x,y)
         self.img,self.laser_img,self.score = SPACESHIP,BULLET,0
         self.mask = from_surface(self.img)
+        self.username = username
         self.v = 7
 
     def move(self ,keys) -> None:
@@ -140,7 +167,7 @@ def move_lasers(vel:int,pl:Player,lasers: list,lives: int) -> int:
 def spawn(count):
     enemies = []
     for _ in range(count):
-        x,y = randint(60,WIDTH),randint(-200,0)
+        x,y = randint(60,WIDTH-120),randint(-200,0)
         enemy = Enemy(x,y)
         fl = True
         while fl:
@@ -150,17 +177,18 @@ def spawn(count):
                     fl = True
                     break
             if fl:
-                x,y = randint(0,WIDTH),randint(-200,0)
+                x,y = randint(60,WIDTH-120),randint(-200,0)
                 enemy.x,enemy.y = x,y
         enemies.append(enemy)
     return enemies
-def main() -> None:
+def main(username:str) -> int:
     run,FPS = True,60
     LIVES,FONT,CLOCK = 5,SysFont("comicsans",50),Clock()
-    player = Player(300,650)
-    player_vel = 5
+    LEVEL = 0;
+    player = Player(300,650,username)
     bgy,bgy2 = 0.0,-float(BACKGROUND.get_height())
     enemies,enemy_lasers = [],[]
+    player_laser_vel = -8;
     wave_length,enemy_vel,laser_vel = 5,1,5
     mixer.music.load("assets/background.wav")
     mixer.music.play(-1)
@@ -179,10 +207,22 @@ def main() -> None:
         update()
     while run:
         CLOCK.tick(FPS)
-        update_window()
         if len(enemies) == 0:
+            if LEVEL == 10:
+                update_scores(player)
+                return 1
             wave_length += 1
             enemies.extend(spawn(wave_length))
+            LEVEL += 1
+            if LEVEL %4 ==0:
+                enemy_vel+=1
+                player.v += 1
+                player_laser_vel -= 1
+            level_label = FONT.render(F"Level {LEVEL}...",1,(255,255,255))
+            WIN.blit(level_label,(WIDTH//2 - level_label.get_width()//2,HEIGHT//2))
+            update();
+            pygame.time.wait(2500);
+        update_window()
         bgy += 1.4;bgy2 += 1.4
         if bgy>HEIGHT:
             bgy = -BACKGROUND.get_height()
@@ -206,26 +246,107 @@ def main() -> None:
                 LIVES -= 1
             elif enemy.off_screen():
                 enemies.remove(enemy)
+                player.score -= 1
+                player.score = max(player.score,0)
         LIVES = move_lasers(laser_vel,player,enemy_lasers,LIVES)
         if LIVES<=0:
-            quit()
-        player.move_lasers(-8,enemies)
+            update_scores(player)
+            return 1
+        player.move_lasers(player_laser_vel,enemies)
+    update_scores(player)
+    return 1;
+def wait():
+    while True:
+        for event in get():
+            if event.type == QUIT:
+                pygame.quit()
+            if event.type == KEYDOWN and event.key == K_ESCAPE:
+                pygame.quit()
+            if event.type == KEYDOWN and event.key == K_SPACE:
+                return
 
+def update_scores(player):
+    scores = {}
+    with open("scores","rb") as f:
+        scores = loads(f.read())
+    scores[player.username] = max(scores.get(player.username,0),player.score)
+    a = sorted([(x[1],x[0]) for x in scores.items()])
+    with open("scores","wb") as f:
+        f.write(dumps((scores)))
+
+def renderFont(text,size,x,y,style="comicsans") -> None:
+    obj1 = font.SysFont(style,size).render(text,1,(255,255,255))
+    WIN.blit(obj1,(x,y))
+def display_scores():
+    with open("scores","rb") as f:
+        scores = loads(f.read())
+    a = sorted([(scores[x],x) for x in scores],reverse=True)
+    WIN.blit(BACKGROUND,(0,0))
+    renderFont("Usernames",50,100,50)
+    renderFont("Scores",50,850,50)
+    y=90
+    # print(a);
+    for i in range(10):
+        renderFont(str(a[i][1]),45,100,y) #name
+        renderFont(str(a[i][0]),45,850,y) #score
+        y+=45
+    update()
+    wait()
 def menu():
-    titleFont = font.SysFont("comicsans",70)
+    textBox = TextBox()
+    textBox.rect.center = [320 ,240]
     run = True
+    username = ""
+    while run:
+      WIN.fill([255, 255, 255])
+      WIN.blit(textBox.image, textBox.rect)
+      pygame.display.flip()
+      for e in pygame.event.get():
+        if e.type == pygame.QUIT:
+            running = False
+        if e.type == pygame.KEYUP:
+            if e.key in [pygame.K_RSHIFT, pygame.K_LSHIFT]:
+                shiftDown = False
+        if e.type == pygame.KEYDOWN:
+            textBox.add_chr(pygame.key.name(e.key))
+            if e.key == pygame.K_SPACE:
+                textBox.text += " "
+                textBox.update()
+            if e.key in [pygame.K_RSHIFT, pygame.K_LSHIFT]:
+                shiftDown = True
+            if e.key == pygame.K_BACKSPACE:
+                textBox.text = textBox.text[:-1]
+                textBox.update()
+            if e.key == pygame.K_RETURN:
+                if len(textBox.text) > 0:
+                    username = textBox.text
+                    print (textBox.text)
+                    run = False
+    run = True
+    titleFont = font.SysFont("comicsans",70)
     while run:
         WIN.blit(BACKGROUND,(0,0))
         titleLabel = titleFont.render("Press Spacebar to Begin...",1,(255,255,255))
         WIN.blit(titleLabel,(WIDTH//2 - titleLabel.get_width()//2,HEIGHT//2))
-        pygame.display.update()
+        update()
         for event in get():
             if event.type == pygame.QUIT:
                 run = False
                 break
             keys = get_pressed()
             if keys[K_SPACE]:
-                main()
+                if main(username) == 1:
+                    WIN.blit(BACKGROUND,(0,0))
+                    titleLabel = titleFont.render("Game Over...",1,(255,255,255))
+                    WIN.blit(titleLabel,(WIDTH//2 - titleLabel.get_width()//2,HEIGHT//2))
+                    update()
+                    pygame.time.wait(2000)
+                    WIN.blit(BACKGROUND,(0,0))
+                    titleLabel = titleFont.render("Press Space To Restart/Escape To Quit...",1,(255,255,255))
+                    WIN.blit(titleLabel,(WIDTH//2 - titleLabel.get_width()//2,HEIGHT//2))
+                    update()
+                    wait()
+    display_scores()
     pygame.quit()
 if __name__ == '__main__':
     menu()
