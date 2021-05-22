@@ -4,7 +4,7 @@ from random import randint
 from constants import WIN,SPACESHIP,BULLET,BACKGROUND,\
                       HEIGHT,WIDTH,ENEMY_SHIP,ENEMY_BULLET
 from pygame import K_LEFT,K_RIGHT,K_UP,K_DOWN,\
-                   K_a,K_w,K_d,K_s,K_SPACE,QUIT,K_ESCAPE,KEYDOWN
+                   K_a,K_w,K_d,K_s,K_SPACE,QUIT,K_ESCAPE,KEYDOWN,K_m
 from pygame.display import update
 from pygame.font import SysFont
 from pygame.time import Clock
@@ -20,12 +20,13 @@ explosion = pygame.mixer.Sound("assets/explosion.wav")
 validChars = "`1234567890-=qwertyuiop[]\\asdfghjkl;'zxcvbnm,./"
 shiftChars = '~!@#$%^&*()_+QWERTYUIOP{}|ASDFGHJKL:"ZXCVBNM<>?'
 shiftDown = False
+isMuted = False
 class TextBox(pygame.sprite.Sprite):
   def __init__(self):
     pygame.sprite.Sprite.__init__(self)
     self.text = ""
     self.font = pygame.font.Font(None, 50)
-    self.image = self.font.render("Enter your name", False, [0, 0, 0])
+    self.image = self.font.render("Enter your name", False, [255, 255, 255])
     self.rect = self.image.get_rect()
 
   def add_chr(self, char):
@@ -38,7 +39,7 @@ class TextBox(pygame.sprite.Sprite):
 
   def update(self):
     old_rect_pos = self.rect.center
-    self.image = self.font.render(self.text, False, [0, 0, 0])
+    self.image = self.font.render(self.text, False, [255, 255, 255])
     self.rect = self.image.get_rect()
     self.rect.center = old_rect_pos
 
@@ -116,6 +117,7 @@ class Player(Ship):
             self.cool_down_counter = 1
 
     def move_lasers(self, vel, objs) -> None:
+        global isMuted
         self.cooldown()
         for laser in self.lasers:
             laser.move(vel)
@@ -182,6 +184,7 @@ def spawn(count):
         enemies.append(enemy)
     return enemies
 def main(username:str) -> int:
+    global isMuted
     run,FPS = True,60
     LIVES,FONT,CLOCK = 5,SysFont("comicsans",50),Clock()
     LEVEL = 0;
@@ -214,7 +217,7 @@ def main(username:str) -> int:
             wave_length += 1
             enemies.extend(spawn(wave_length))
             LEVEL += 1
-            if LEVEL %4 ==0:
+            if LEVEL%4 ==0:
                 enemy_vel+=1
                 player.v += 1
                 player_laser_vel -= 1
@@ -237,6 +240,12 @@ def main(username:str) -> int:
         if keys[K_SPACE]:
             bulletSound.play()
             player.shoot()
+        if keys[K_m]:
+            isMuted = not isMuted
+            if isMuted:
+                mixer.music.stop()
+            else:
+                mixer.music.play(-1)
         for enemy in enemies[:]:
             enemy.move(enemy_vel)
             if randint(0, 2*30) == 1 and enemy.y>0:
@@ -298,7 +307,7 @@ def menu():
     run = True
     username = ""
     while run:
-      WIN.fill([255, 255, 255])
+      WIN.blit(BACKGROUND,(0,0))
       WIN.blit(textBox.image, textBox.rect)
       pygame.display.flip()
       for e in pygame.event.get():
